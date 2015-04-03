@@ -266,8 +266,8 @@ cd /usr/share/elasticsearch/bin
 #    Security                                        #
 #                                                    #
 ######################################################
-echo -e "\033[32m[+] Installation of the following packages: iptables, libpam-cracklib, fail2ban, portsentry \033[0m"
-apt-get install -y iptables libpam-cracklib fail2ban portsentry 
+echo -e "\033[32m[+] Installation of the following packages: iptables, libpam-cracklib, fail2ban, portsentry, openssh-server \033[0m"
+apt-get install -y iptables libpam-cracklib fail2ban portsentry openssh-server
 
 echo -e "\033[32m[+] Prohibition compile or install a paquet for a simple user. \033[0m"
 chmod o-x /usr/bin/gcc-*
