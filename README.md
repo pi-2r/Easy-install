@@ -22,4 +22,4 @@ by your own parameters.
  Change the chmod of this script, in order to make it executable (chmod +x setup.sh)
  
  Step3: 
- Run the scrip: sudo ./setup.sh
+ Run the scrip: sudo ./setup.sh arg or sudo ./setup.sh showme in order to read all the options
