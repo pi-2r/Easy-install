@@ -3,7 +3,7 @@
 cluster_name="Zen"
 node_name="Node_1"
 host="['127.0.0.1']"
-ssh_port="4246"
+ssh_port="22"
 your_email="your_mail"
 
 java_url="http://download.oracle.com/otn-pub/java/jdk/8u25-b17/jdk-8u25-linux-x64.tar.gz"
@@ -15,6 +15,39 @@ if [[ $EUID -ne 0 ]]; then
 	exit 1
 fi
 
+#----------- Vérification de parametre --------------
+if [ -z $1 ]
+then
+	echo -e "\033[31m [-] Error:  you must specify an argument.  \033[0m"
+	echo -e "\033[31m launch ./full_launcher.sh showme in order to more information \033[0m"
+	exit 1
+fi
+#------------- fin Vérification ---------------------
+
+#------------- Help ---------------------------------
+if [ $1 == "showme" ]
+then
+    echo -e "\033[1;36m[+] How to run the script: ./setup.sh arg \033[0m"
+    echo -e "\033[1;36m :arg web : web option (install Apache, PHP, and all the dependencies) \033[0m"
+    echo -e "\033[1;36m :arg bdd : BDD option (install mysql, phpmyamdin, and all the dependencies) \033[0m"
+    echo -e "\033[1;36m :arg scrapy : scrapy option (install python, scrapy, and all the dependencies) \033[0m"
+    echo -e "\033[1;36m :arg es : ES option (install java, ElasticSearch, and all the dependencies) \033[0m"
+    echo -e "\033[1;36m \nexample: sudo ./setup.sh web \033[0m"
+    exit 1
+fi
+#--------------End Help -----------------------------
+
+        
+echo -e "\033[32m Which OS ?\033[0m"
+if [ -d /var/lib/gconf/debian.defaults ]
+then
+    echo -e "\033[1;36m [+] Ubuntu/Debian \033[0m"
+else
+   echo -e "\033[31m [-] Error: OS is not Ubuntu/Debian  \033[0m"
+   exit 1
+fi
+#------------------------  Appel du fichier de config serveur  --------------------
+
 function sedeasy {
 sed -i "s/$(echo $1 | sed -e 's/\([[\/.*]\|\]\)/\\&/g')/$(echo $2 | sed -e 's/[\/&]/\\&/g')/g" $3
 }
@@ -22,123 +55,110 @@ sed -i "s/$(echo $1 | sed -e 's/\([[\/.*]\|\]\)/\\&/g')/$(echo $2 | sed -e 's/[\
 apt-get update
 apt-get upgrade -y
 
-######################################################
-#                                                    #
-# Install Apache2, PHP5, Mysql, PHPMYadmin           #
-#                                                    #
-######################################################
-echo -e "\033[32m[+] Install Apache2 \033[0m"
-apt-get -y install apache2 apache2-utils
+#----------------------Install PHP + APACHE2 ------------------------------------------------
+if [ $1 = "web" ]
+then
+	echo -e "\033[32m[+] Install Apache2 \033[0m"
+	apt-get -y install apache2 apache2-utils
 
-echo -e "\033[32m[+] Install and Configure MySQL Server \033[0m"
-apt-get -y install mysql-server libapache2-mod-auth-mysql php5-mysql
+	echo -e "\033[32m[+] Install and Configure PHP5 \033[0m"
+	apt-get -y install libapache2-mod-auth-mysql php5-mcrypt php5-imagick php5-gd php5-cli php5-sqlite php5-curl php5-imap
+	echo -e "\033[32m[+]Change chmod on html \033[0m"
+	find /var/www/html \( -type f -execdir chmod 644 {} \; \) -o \( -type d -execdir chmod 755 {} \; \)
+	echo -e "\033[32m[+] PHP hardening \033[0m"
+	sedeasy "disable_functions = pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority," "disable_functions = pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,exec, system, shell_exec,passthru," /etc/php5/apache2/php.ini 
+	sedeasy "expose_php = On" "expose_php = Off" /etc/php5/apache2/php.ini
+	sedeasy "display_errors = On" "display_errors = Off" /etc/php5/apache2/php.ini
+	sedeasy "track_errors = On" "track_errors = Off" /etc/php5/apache2/php.ini
+	sedeasy "html_errors = On" "html_errors = Off" /etc/php5/apache2/php.ini
 
-echo -e "\033[32m[+] mysql_install_db \033[0m"
-mysql_install_db
+	echo -e "\033[32m[+] Apache hardening \033[0m"
+	sedeasy "ServerTokens OS" "ServerTokens Prod" /etc/apache2/conf-enabled/security.conf
+	sedeasy "ServerSignature On" "ServerSignature Off" /etc/apache2/conf-enabled/security.conf
+	sedeasy "TraceEnable On" "TraceEnable Off" /etc/apache2/conf-enabled/security.conf
+	echo "Header unset ETag" >> /etc/apache2/conf-enabled/security.conf
+	echo "FileETag None" >> /etc/apache2/conf-enabled/security.conf
 
-echo -e "\033[32m[+] mysql_secure_installation \033[0m"
-mysql_secure_installation
+	ln -s /etc/apache2/mods-available/headers.load /etc/apache2/mods-enabled/headers.load
 
-echo -e "\033[32m[+] Install and Configure PHP5 \033[0m"
-apt-get -y install mysql-server libapache2-mod-auth-mysql php5-mysql php5-mcrypt php5-imagick php5-gd php5-cli php5-sqlite php5-curl php5-imap
+	echo -e "\033[32m[+]Restart Apache2 \033[0m"
+	service apache2 restart
 
-echo -e "\033[32m[+] Install Phpmyadmin \033[0m"
-apt-get -y install phpmyadmin
-ln -s /usr/share/phpmyadmin /var/www/html/
+	echo -e "\033[32m[+]Install and configure ModSecurity \033[0m"
+	apt-get install -y libapache2-mod-security2
+	mv /etc/modsecurity/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf
+	sedeasy "SecRuleEngine DetectionOnly" "SecRuleEngine On" /etc/modsecurity/modsecurity.conf
 
-echo -e "\033[32m[+]Change chmod on html \033[0m"
-find /var/www/html \( -type f -execdir chmod 644 {} \; \) \
-                  -o \( -type d -execdir chmod 711 {} \; \)
+	echo -e "\033[32m[+] Open Web Application Security Project Core Rule  \033[0m"
+	cd /tmp
+	wget https://github.com/SpiderLabs/owasp-modsecurity-crs/archive/master.zip
+	apt-get install -y zip
+	unzip master.zip
+	cp -r owasp-modsecurity-crs-master/* /etc/modsecurity/
+	mv /etc/modsecurity/modsecurity_crs_10_setup.conf.example /etc/modsecurity/modsecurity_crs_10_setup.conf
+	ls /etc/modsecurity/base_rules | xargs -I {} ln -s /etc/modsecurity/base_rules/{} /etc/modsecurity/activated_rules/{}
+	ls /etc/modsecurity/optional_rules | xargs -I {} ln -s /etc/modsecurity/optional_rules/{} /etc/modsecurity/activated_rules/{}
+	rm master.zip
 
-echo -e "\033[32m[+] PHP hardening \033[0m"
-sedeasy "disable_functions = pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority," "disable_functions = pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,exec, system, shell_exec,passthru," /etc/php5/apache2/php.ini 
-sedeasy "expose_php = On" "expose_php = Off" /etc/php5/apache2/php.ini
-sedeasy "display_errors = On" "display_errors = Off" /etc/php5/apache2/php.ini
-sedeasy "track_errors = On" "track_errors = Off" /etc/php5/apache2/php.ini
-sedeasy "html_errors = On" "html_errors = Off" /etc/php5/apache2/php.ini
+	#sedeasy "</IfModule>" '</IfModule> Include "/etc/modsecurity/activated_rules/*.conf"' /etc/apache2/mods-available/security2.conf
 
-echo -e "\033[32m[+] Apache hardening \033[0m"
-sedeasy "ServerTokens OS" "ServerTokens Prod" /etc/apache2/conf-enabled/security.conf
-sedeasy "ServerSignature On" "ServerSignature Off" /etc/apache2/conf-enabled/security.conf
-sedeasy "TraceEnable On" "TraceEnable Off" /etc/apache2/conf-enabled/security.conf
-echo "Header unset ETag" >> /etc/apache2/conf-enabled/security.conf
-echo "FileETag None" >> /etc/apache2/conf-enabled/security.conf
+	echo -e "\033[32m[+]  Install and configure mod_evasive \033[0m"
+	apt-get install -y libapache2-mod-evasive
+	sedeasy "#DOSHashTableSize" "#DOSHashTableSize" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSPageCount" "DOSPageCount" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSSiteCount" "DOSSiteCount" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSPageInterval" "DOSPageInterval" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSSiteInterval" "DOSSiteInterval" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSBlockingPeriod" "DOSBlockingPeriod" /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSEmailNotify" "DOSEmailNotify" /etc/apache2/mods-available/evasive.conf
+	sedeasy "you@yourdomain.com" $email /etc/apache2/mods-available/evasive.conf
+	sedeasy "#DOSLogDir" "DOSLogDir" /etc/apache2/mods-available/evasive.conf
 
-ln -s /etc/apache2/mods-available/headers.load /etc/apache2/mods-enabled/headers.load
-
-echo -e "\033[32m[+]Restart Apache2 \033[0m"
-service apache2 restart
-
-echo -e "\033[32m[+]Install and configure ModSecurity \033[0m"
-apt-get install -y libapache2-mod-security2
-mv /etc/modsecurity/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf
-sedeasy "SecRuleEngine DetectionOnly" "SecRuleEngine On" /etc/modsecurity/modsecurity.conf
-
-echo -e "\033[32m[+] Open Web Application Security Project Core Rule  \033[0m"
-cd /tmp
-wget https://github.com/SpiderLabs/owasp-modsecurity-crs/archive/master.zip
-apt-get install -y zip
-unzip master.zip
-cp -r owasp-modsecurity-crs-master/* /etc/modsecurity/
-mv /etc/modsecurity/modsecurity_crs_10_setup.conf.example /etc/modsecurity/modsecurity_crs_10_setup.conf
-ls /etc/modsecurity/base_rules | xargs -I {} ln -s /etc/modsecurity/base_rules/{} /etc/modsecurity/activated_rules/{}
-ls /etc/modsecurity/optional_rules | xargs -I {} ln -s /etc/modsecurity/optional_rules/{} /etc/modsecurity/activated_rules/{}
-
-#sedeasy "</IfModule>" '</IfModule> Include "/etc/modsecurity/activated_rules/*.conf"' /etc/apache2/mods-available/security2.conf
-
-echo -e "\033[32m[+]  Install and configure mod_evasive \033[0m"
-apt-get install -y libapache2-mod-evasive
-sedeasy "#DOSHashTableSize" "#DOSHashTableSize" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSPageCount" "DOSPageCount" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSSiteCount" "DOSSiteCount" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSPageInterval" "DOSPageInterval" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSSiteInterval" "DOSSiteInterval" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSBlockingPeriod" "DOSBlockingPeriod" /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSEmailNotify" "DOSEmailNotify" /etc/apache2/mods-available/evasive.conf
-sedeasy "you@yourdomain.com" $email /etc/apache2/mods-available/evasive.conf
-sedeasy "#DOSLogDir" "DOSLogDir" /etc/apache2/mods-available/evasive.conf
-
-ln -s /etc/apache2/mods-available/evasive.conf /etc/apache2/mods-enabled/evasive.conf
-service apache2 restart
-
-echo -e "\033[32m[+] Install and configure rootkit checkers \033[0m"
-apt-get install -y rkhunter chkrootkit
-sedeasy 'RUN_DAILY="false"' 'RUN_DAILY="true"' /etc/chkrootkit.conf
-sedeasy 'RUN_DAILY_OPTS="-q"' 'RUN_DAILY_OPTS=""' /etc/chkrootkit.conf
-sedeasy 'CRON_DAILY_RUN=""' 'CRON_DAILY_RUN="true"' /etc/default/rkhunter
-sedeasy 'CRON_DB_UPDATE=""' 'CRON_DB_UPDATE="true"' /etc/default/rkhunter
-mv /etc/cron.weekly/rkhunter /etc/cron.weekly/rkhunter_update
-mv /etc/cron.daily/rkhunter /etc/cron.weekly/rkhunter_run
-mv /etc/cron.daily/chkrootkit /etc/cron.weekly/
+	ln -s /etc/apache2/mods-available/evasive.conf /etc/apache2/mods-enabled/evasive.conf
+	service apache2 restart
+fi
+#----------------------Ending PHP + APACHE2 -------------------------------------------------
 
 
-######################################################
-#                                                    #
-# Install GIt                                        #
-#                                                    #
-######################################################
-echo -e "\033[32m[+] Install Git \033[0m"
-apt-get install -y git
+#----------------------Install MYSQL --------------------------------------------------------
+if [ $1 = "bdd" ]
+then
+	echo -e "\033[32m[+] Install and Configure MySQL Server \033[0m"
+	apt-get -y install mysql-server libapache2-mod-auth-mysql php5-mysql apache2-utils apache2 mysql-client
+
+	echo -e "\033[32m[+] mysql_secure_installation \033[0m"
+	mysql_secure_installation
 
 
-######################################################
-#                                                    #
-# Install Python  & Scrapy                           #
-#                                                    #
-######################################################
-echo -e "\033[32m[+] Install Python \033[0m"
-apt-get install -y python2.7 python-pip python-dev build-essential
+	echo -e "\033[32m[+] Install Phpmyadmin \033[0m"
+	apt-get -y install phpmyadmin
+	ln -s /usr/share/phpmyadmin /var/www/html/
+fi
+#----------------------Ending Mysql ---------------------------------------------------------
 
-echo -e "\033[32m[+] Install Scrapy \033[0m"
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 627220E7
-echo 'deb http://archive.scrapy.org/ubuntu scrapy main' | tee /etc/apt/sources.list.d/scrapy.list
-apt-get update && apt-get install -y scrapy-0.24
 
-######################################################
-#                                                    #
-# Install Java                                       #
-#                                                    #
-######################################################
+#----------------------Install Python & Scrapy -------------------------------------------------
+if [ $1 = "scrapy" ]
+then
+	echo -e "\033[32m[+] Install Python \033[0m"
+	apt-get install -y python2.7 python-pip python-dev build-essential libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev libxslt-dev libxml2-dev
+
+	echo -e "\033[32m[+] Install Scrapy \033[0m"
+	apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 627220E7
+	echo 'deb http://archive.scrapy.org/ubuntu scrapy main' | tee /etc/apt/sources.list.d/scrapy.list
+	apt-get update && apt-get install -y scrapy-0.24
+
+	echo -e "\033[32m[+] Install elasticsearch, simplejson, requests \033[0m"
+	pip install lxml
+	pip install elasticsearch
+	pip install simplejson
+	pip install requests
+fi
+#----------------------Ending Python & Scrapy -------------------------------------------------
+
+#----------------------Install ElasticSearch  -------------------------------------------------
+if [ $1 = "es" ]
+then
 echo -e "\033[32m[+] Install Java \033[0m"
 echo -e "\033[32m[+] Downloading of JDK \033[0m"
 COOKIE="gpw_e24=x; oraclelicense=accept-securebackup-cookie"
@@ -223,49 +243,46 @@ echo -e "\033[32m[+] Done. \033[0m"
 echo -e "\033[32m[+] Cleaning ...\033[0m"
 rm jdk-8u25-linux-x64.tar.gz > /dev/null
 
-######################################################
-#                                                    #
-# Install ElasticSearch                              #
-#                                                    #
-######################################################
-echo -e "\033[32m[+] Downloading ElasticSearch \033[0m"
-wget $es_url
-dpkg -i elasticsearch-1.5.0.deb
-update-rc.d elasticsearch defaults 95 10
+	######################################################
+	#                                                    #
+	# Install ElasticSearch                              #
+	#                                                    #
+	######################################################
+	echo -e "\033[32m[+] Downloading ElasticSearch \033[0m"
+	wget $es_url
+	dpkg -i elasticsearch-1.5.0.deb
+	update-rc.d elasticsearch defaults 95 10
 
-echo -e "\033[32m[+] Configuration of your ElasticSearch Cluster \033[0m"
+	echo -e "\033[32m[+] Configuration of your ElasticSearch Cluster \033[0m"
 
-sedeasy '#cluster.name: elasticsearch' 'cluster.name: '$cluster_name'' /etc/elasticsearch/elasticsearch.yml
-sedeasy '#node.name: "Franz Kafka"' 'node.name: '$node_name'' /etc/elasticsearch/elasticsearch.yml
-sedeasy '#index.number_of_shards: 5' "index.number_of_shards: 1" /etc/elasticsearch/elasticsearch.yml
-sedeasy '#index.number_of_replicas: 1' "index.number_of_replicas: 1" /etc/elasticsearch/elasticsearch.yml
-sedeasy '#discovery.zen.ping.multicast.enabled: false' 'discovery.zen.ping.multicast.enabled: false' /etc/elasticsearch/elasticsearch.yml
-sedeasy '#discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]' "discovery.zen.ping.unicast.hosts: $host" /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#cluster.name: elasticsearch' 'cluster.name: '$cluster_name'' /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#node.name: "Franz Kafka"' 'node.name: '$node_name'' /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#index.number_of_shards: 5' "index.number_of_shards: 1" /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#index.number_of_replicas: 1' "index.number_of_replicas: 1" /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#discovery.zen.ping.multicast.enabled: false' 'discovery.zen.ping.multicast.enabled: false' /etc/elasticsearch/elasticsearch.yml
+	sedeasy '#discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]' "discovery.zen.ping.unicast.hosts: $host" /etc/elasticsearch/elasticsearch.yml
 
-echo -e "\033[32m[+] Marvel - Turn off logging \033[0m"
-echo "marvel.agent.enabled: false" >> /etc/elasticsearch/elasticsearch.yml
+	echo -e "\033[32m[+] Marvel - Turn off logging \033[0m"
+	echo "marvel.agent.enabled: false" >> /etc/elasticsearch/elasticsearch.yml
 
-echo -e "\033[32m[+] Starting ElasticSearch \033[0m"
-/etc/init.d/elasticsearch start > /dev/null
-echo -e "\033[32m[+] Done. \033[0m"
+	echo -e "\033[32m[+] Starting ElasticSearch \033[0m"
+	/etc/init.d/elasticsearch start > /dev/null
+	echo -e "\033[32m[+] Done. \033[0m"
 
-echo -e "\033[32m[+] Cleaning ...\033[0m"
-rm elasticsearch-1.4.2.deb > /dev/null
-apt-get autoclean > /dev/null
+	echo -e "\033[32m[+] Cleaning ...\033[0m"
+	rm elasticsearch-1.5.0.deb > /dev/null
+	apt-get autoclean > /dev/null
 
-echo -e "\033[32m[+] Install all plugin of ElasticSearch \033[0m"
-cd /usr/share/elasticsearch/bin
-./plugin --install elasticsearch/marvel/latest > /dev/null
-./plugin --install mobz/elasticsearch-head > /dev/null
-./plugin --install lmenezes/elasticsearch-kopf/1.5.0 > /dev/null
-./plugin --install royrusso/elasticsearch-HQ > /dev/null
+	echo -e "\033[32m[+] Install all plugin of ElasticSearch \033[0m"
+	cd /usr/share/elasticsearch/bin
+	./plugin --install elasticsearch/marvel/latest > /dev/null
+	./plugin --install mobz/elasticsearch-head > /dev/null
+	./plugin --install lmenezes/elasticsearch-kopf/1.5.0 > /dev/null
+	./plugin --install royrusso/elasticsearch-HQ > /dev/null
+fi
+#----------------------Ending ElasticSearch  -------------------------------------------------
 
-
-######################################################
-#                                                    #
-#    Security                                        #
-#                                                    #
-######################################################
+#-----------------------------------Security  ------------------------------------------------
 echo -e "\033[32m[+] Installation of the following packages: iptables, libpam-cracklib, fail2ban, portsentry, openssh-server \033[0m"
 apt-get install -y iptables libpam-cracklib fail2ban portsentry openssh-server
 
@@ -294,7 +311,7 @@ echo -e "\033[32m[+] Backup of sshd_config \033[0m"
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config_backup
 
 echo -e "\033[32m[+] Change the default SSH port\033[0m"
-sedeasy '# Port 22' ' Port $ssh_port' /etc/ssh/ssh_config
+sedeasy '#   Port 22' '   Port $ssh_port' /etc/ssh/ssh_config
 echo -e "\033[32m[+] Disable SSH login for the root user\033[0m"
 sedeasy 'PermitRootLogin' 'PermitRootLogin no' /etc/ssh/ssh_config
 
@@ -319,3 +336,14 @@ echo -e "\033[32m[+] Restarting sshd \033[0m"
 echo -e "\033[32m[+] Change configuration of Fail2Ban \033[0m"
 sedeasy '/maxretry = 6' 'maxretry = 3' /etc/fail2ban/jail.conf
 /etc/init.d/fail2ban restart > /dev/null
+
+echo -e "\033[32m[+] Install and configure rootkit checkers \033[0m"
+apt-get install -y rkhunter chkrootkit
+sedeasy 'RUN_DAILY="false"' 'RUN_DAILY="true"' /etc/chkrootkit.conf
+sedeasy 'RUN_DAILY_OPTS="-q"' 'RUN_DAILY_OPTS=""' /etc/chkrootkit.conf
+sedeasy 'CRON_DAILY_RUN=""' 'CRON_DAILY_RUN="true"' /etc/default/rkhunter
+sedeasy 'CRON_DB_UPDATE=""' 'CRON_DB_UPDATE="true"' /etc/default/rkhunter
+mv /etc/cron.weekly/rkhunter /etc/cron.weekly/rkhunter_update
+mv /etc/cron.daily/rkhunter /etc/cron.weekly/rkhunter_run
+mv /etc/cron.daily/chkrootkit /etc/cron.weekly/
+#----------------------------------Ending Security  ------------------------------------------
