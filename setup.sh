@@ -32,6 +32,8 @@ then
     echo -e "\033[1;36m :arg bdd : BDD option (install mysql, phpmyamdin, and all the dependencies) \033[0m"
     echo -e "\033[1;36m :arg scrapy : scrapy option (install python, scrapy, and all the dependencies) \033[0m"
     echo -e "\033[1;36m :arg es : ES option (install java, ElasticSearch, and all the dependencies) \033[0m"
+    echo -e "\033[1;36m :arg s3cmd : s3cmd option (install the latest version of s3cmd tool) 033[0m"
+    echo -e "\033[1;36m :arg sec : security option (install the latest version of s3cmd tool) 033[0m"
     echo -e "\033[1;36m \nexample: sudo ./setup.sh web \033[0m"
     exit 1
 fi
@@ -53,7 +55,7 @@ sed -i "s/$(echo $1 | sed -e 's/\([[\/.*]\|\]\)/\\&/g')/$(echo $2 | sed -e 's/[\
 }
 
 apt-get update
-apt-get upgrade -y
+#apt-get upgrade -y
 
 #----------------------Install PHP + APACHE2 ------------------------------------------------
 if [ $1 = "web" ]
@@ -317,67 +319,90 @@ fi
 #----------------------Ending ElasticSearch  -------------------------------------------------
 
 #-----------------------------------Security  ------------------------------------------------
-echo -e "\033[32m[+] Installation of the following packages: iptables, libpam-cracklib, fail2ban, portsentry, openssh-server \033[0m"
-apt-get install -y iptables libpam-cracklib fail2ban portsentry openssh-server
+if [ $1 = "sec" ]
+then
+	echo -e "\033[32m[+] Installation of the following packages: iptables, libpam-cracklib, fail2ban, portsentry, openssh-server \033[0m"
+	apt-get install -y iptables libpam-cracklib fail2ban portsentry openssh-server
 
-echo -e "\033[32m[+] Prohibition compile or install a paquet for a simple user. \033[0m"
-chmod o-x /usr/bin/gcc-*
-chmod o-x /usr/bin/make*
-chmod o-x /usr/bin/apt-get
-chmod o-x /usr/bin/dpkg
+	echo -e "\033[32m[+] Prohibition compile or install a paquet for a simple user. \033[0m"
+	chmod o-x /usr/bin/gcc-*
+	chmod o-x /usr/bin/make*
+	chmod o-x /usr/bin/apt-get
+	chmod o-x /usr/bin/dpkg
 
-echo -e "\033[32m[+] No Core Dump. \033[0m"
-echo "* hard core 0" >> /etc/security/limits.conf
-echo "fs.suid_dumpable = 0" >> /etc/sysctl.conf
-echo 'ulimit -S -c 0 > /dev/null 2>&1' >> /etc/profile
+	echo -e "\033[32m[+] No Core Dump. \033[0m"
+	echo "* hard core 0" >> /etc/security/limits.conf
+	echo "fs.suid_dumpable = 0" >> /etc/sysctl.conf
+	echo 'ulimit -S -c 0 > /dev/null 2>&1' >> /etc/profile
 
-echo -e "\033[32m[+] Forbiden to read passwd et shadow \033[0m"
-cd /etc/
-chown root:root passwd shadow group gshadow
-chmod 644 passwd group
-chmod 400 shadow gshadow
+	echo -e "\033[32m[+] Forbiden to read passwd et shadow \033[0m"
+	cd /etc/
+	chown root:root passwd shadow group gshadow
+	chmod 644 passwd group
+	chmod 400 shadow gshadow
 
-echo -e "\033[32m[+] Enable logging of su activity . \033[0m"
-sedeasy 'SYSLOG_SU_ENAB no' 'SYSLOG_SU_ENAB yes' /etc/login.defs
-sedeasy 'SYSLOG_SG_ENAB no' 'SYSLOG_SG_ENAB yes' /etc/login.defs
+	echo -e "\033[32m[+] Enable logging of su activity . \033[0m"
+	sedeasy 'SYSLOG_SU_ENAB no' 'SYSLOG_SU_ENAB yes' /etc/login.defs
+	sedeasy 'SYSLOG_SG_ENAB no' 'SYSLOG_SG_ENAB yes' /etc/login.defs
 
-echo -e "\033[32m[+] Backup of sshd_config \033[0m"
-cp /etc/ssh/sshd_config /etc/ssh/sshd_config_backup
+	echo -e "\033[32m[+] Backup of sshd_config \033[0m"
+	cp /etc/ssh/sshd_config /etc/ssh/sshd_config_backup
 
-echo -e "\033[32m[+] Change the default SSH port\033[0m"
-sedeasy '#   Port 22' '   Port $ssh_port' /etc/ssh/ssh_config
-echo -e "\033[32m[+] Disable SSH login for the root user\033[0m"
-sedeasy 'PermitRootLogin' 'PermitRootLogin no' /etc/ssh/ssh_config
+	echo -e "\033[32m[+] Change the default SSH port\033[0m"
+	sedeasy '#   Port 22' '   Port $ssh_port' /etc/ssh/ssh_config
+	echo -e "\033[32m[+] Disable SSH login for the root user\033[0m"
+	sedeasy 'PermitRootLogin' 'PermitRootLogin no' /etc/ssh/ssh_config
 
 
-echo -e "\033[32m[+] Update iptables \033[0m"
-iptables -A INPUT -p tcp -m tcp --dport $ssh_port -j ACCEPT
+	echo -e "\033[32m[+] Update iptables \033[0m"
+	iptables -A INPUT -p tcp -m tcp --dport $ssh_port -j ACCEPT
 
-echo -e "\033[32m[+] Change configuration of Portsentry \033[0m"
-sedeasy 'BLOCK_UDP="0"' 'BLOCK_UDP="1"' /etc/portsentry/portsentry.conf
-sedeasy 'BLOCK_TCP="0"' 'BLOCK_TCP="1"' /etc/portsentry/portsentry.conf
-sedeasy 'KILL_ROUTE="/sbin/route add -host $TARGET$ reject"' 'KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"' /etc/portsentry/portsentry.conf
-sedeasy 'RESOLVE_HOST = "0"' 'RESOLVE_HOST = "1"' /etc/portsentry/portsentry.conf
-sedeasy 'TCP_MODE="tcp"' 'TCP_MODE="atcp"' /etc/default/portsentry
-sedeasy 'UDP_MODE="udp"' 'UDP_MODE="sudp"' /etc/default/portsentry
+	echo -e "\033[32m[+] Change configuration of Portsentry \033[0m"
+	sedeasy 'BLOCK_UDP="0"' 'BLOCK_UDP="1"' /etc/portsentry/portsentry.conf
+	sedeasy 'BLOCK_TCP="0"' 'BLOCK_TCP="1"' /etc/portsentry/portsentry.conf
+	sedeasy 'KILL_ROUTE="/sbin/route add -host $TARGET$ reject"' 'KILL_ROUTE="/sbin/iptables -I INPUT -s $TARGET$ -j DROP"' /etc/portsentry/portsentry.conf
+	sedeasy 'RESOLVE_HOST = "0"' 'RESOLVE_HOST = "1"' /etc/portsentry/portsentry.conf
+	sedeasy 'TCP_MODE="tcp"' 'TCP_MODE="atcp"' /etc/default/portsentry
+	sedeasy 'UDP_MODE="udp"' 'UDP_MODE="sudp"' /etc/default/portsentry
 
-echo -e "\033[32m[+] Restarting portsentry \033[0m"
-/etc/init.d/portsentry restart > /dev/null
+	echo -e "\033[32m[+] Restarting portsentry \033[0m"
+	/etc/init.d/portsentry restart > /dev/null
 
-echo -e "\033[32m[+] Restarting sshd \033[0m"
-/etc/init.d/ssh restart
+	echo -e "\033[32m[+] Restarting sshd \033[0m"
+	/etc/init.d/ssh restart
 
-echo -e "\033[32m[+] Change configuration of Fail2Ban \033[0m"
-sedeasy '/maxretry = 6' 'maxretry = 3' /etc/fail2ban/jail.conf
-/etc/init.d/fail2ban restart > /dev/null
+	echo -e "\033[32m[+] Change configuration of Fail2Ban \033[0m"
+	sedeasy '/maxretry = 6' 'maxretry = 3' /etc/fail2ban/jail.conf
+	/etc/init.d/fail2ban restart > /dev/null
 
-echo -e "\033[32m[+] Install and configure rootkit checkers \033[0m"
-apt-get install -y rkhunter chkrootkit
-sedeasy 'RUN_DAILY="false"' 'RUN_DAILY="true"' /etc/chkrootkit.conf
-sedeasy 'RUN_DAILY_OPTS="-q"' 'RUN_DAILY_OPTS=""' /etc/chkrootkit.conf
-sedeasy 'CRON_DAILY_RUN=""' 'CRON_DAILY_RUN="true"' /etc/default/rkhunter
-sedeasy 'CRON_DB_UPDATE=""' 'CRON_DB_UPDATE="true"' /etc/default/rkhunter
-mv /etc/cron.weekly/rkhunter /etc/cron.weekly/rkhunter_update
-mv /etc/cron.daily/rkhunter /etc/cron.weekly/rkhunter_run
-mv /etc/cron.daily/chkrootkit /etc/cron.weekly/
+	echo -e "\033[32m[+] Install and configure rootkit checkers \033[0m"
+	apt-get install -y rkhunter chkrootkit
+	sedeasy 'RUN_DAILY="false"' 'RUN_DAILY="true"' /etc/chkrootkit.conf
+	sedeasy 'RUN_DAILY_OPTS="-q"' 'RUN_DAILY_OPTS=""' /etc/chkrootkit.conf
+	sedeasy 'CRON_DAILY_RUN=""' 'CRON_DAILY_RUN="true"' /etc/default/rkhunter
+	sedeasy 'CRON_DB_UPDATE=""' 'CRON_DB_UPDATE="true"' /etc/default/rkhunter
+	mv /etc/cron.weekly/rkhunter /etc/cron.weekly/rkhunter_update
+	mv /etc/cron.daily/rkhunter /etc/cron.weekly/rkhunter_run
+	mv /etc/cron.daily/chkrootkit /etc/cron.weekly/
+fi
 #----------------------------------Ending Security  ------------------------------------------
+
+#-----------------------------------S3cmd  ---------------------------------------------------
+if [ $1 = "s3cmd" ]
+then
+	echo -e "\033[32m[+] Install S3cmd \033[0m"
+	apt-get install unzip python-pip
+	wget https://github.com/s3tools/s3cmd/archive/master.zip
+	unzip master.zip
+	cd s3cmd-master/
+	python setup.py install
+	pip install python-dateutil
+	echo -e "\033[32m[+] Check the installed version of s3cmd tool: \033[0m"
+	s3cmd --version
+	echo -e "\033[32m[+] configure of s3cmd tools with your AMAZON ACCESS KEY and SECRET KEY: \033[0m"
+	s3cmd --configure
+	cd ..
+	rm master.zip
+	rm -rf s3cmd-master
+fi
+#-----------------------------------Ending S3cmd  ----------------------------------------------
