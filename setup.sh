@@ -5,9 +5,12 @@ node_name="Node_1"
 host="['127.0.0.1']"
 ssh_port="22"
 your_email="your_mail"
+your_home="/home/zen"
 
 java_url="http://download.oracle.com/otn-pub/java/jdk/8u25-b17/jdk-8u25-linux-x64.tar.gz"
-es_url="https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.5.0.deb" 
+es_url="https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.5.0.deb"
+spark_url="http://d3kbcqa49mib13.cloudfront.net/spark-2.1.0-bin-hadoop2.7.tgz"
+
 
 
 if [[ $EUID -ne 0 ]]; then
@@ -34,6 +37,7 @@ then
     echo -e "\033[1;36m :arg es : ES option (install java, ElasticSearch, and all the dependencies) \033[0m"
     echo -e "\033[1;36m :arg s3cmd : s3cmd option (install the latest version of s3cmd tool) 033[0m"
     echo -e "\033[1;36m :arg sec : security option (install the latest version of s3cmd tool) 033[0m"
+    echo -e "\033[1;36m :arg spark : install spark 033[0m"
     echo -e "\033[1;36m \nexample: sudo ./setup.sh web \033[0m"
     exit 1
 fi
@@ -406,3 +410,25 @@ then
 	rm -rf s3cmd-master
 fi
 #-----------------------------------Ending S3cmd  ----------------------------------------------
+
+#----------------------Install Spark --------------------------------------------------------
+if [ $1 = "spark" ]
+then
+	echo -e "\033[32m[+] download Spark and install pyspark \033[0m"
+	cd $your_home
+	wget $spark_url
+
+	echo -e "\033[32m[+] extract file \033[0m"
+	tar xvf spark-2.1.0-bin-hadoop2.7.tgz
+	rm spark-2.1.0-bin-hadoop2.7.tgz
+
+	echo -e "\033[32m[+]  .bashrc file \033[0m"
+
+	echo "export SPARK_HOME="$your_home"spark-2.1.0-bin-hadoop2.7" >> $your_home/.bashrc
+	echo "export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/build:$PYTHONPATH" >> $your_home/.bashrc
+	source $your_home/.bashrc
+
+	echo -e "\033[32m[+]  Install py4j [0m"
+	pip install py4j
+fi
+#----------------------Ending Spark ---------------------------------------------------------
