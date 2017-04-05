@@ -18,14 +18,13 @@ if [[ $EUID -ne 0 ]]; then
 	exit 1
 fi
 
-#----------- Vérification de parametre --------------
+
 if [ -z $1 ]
 then
 	echo -e "\033[31m [-] Error:  you must specify an argument.  \033[0m"
-	echo -e "\033[31m launch ./full_launcher.sh showme in order to more information \033[0m"
+	echo -e "\033[31m launch './setup.sh showme' in order to more informations \033[0m"
 	exit 1
 fi
-#------------- fin Vérification ---------------------
 
 #------------- Help ---------------------------------
 if [ $1 == "showme" ]
@@ -188,11 +187,12 @@ then
 	echo 'deb http://archive.scrapy.org/ubuntu scrapy main' | tee /etc/apt/sources.list.d/scrapy.list
 	apt-get update && apt-get install -y scrapy-0.24
 
-	echo -e "\033[32m[+] Install elasticsearch, simplejson, requests \033[0m"
+	echo -e "\033[32m[+] Install elasticsearch, simplejson, requests, pymongo \033[0m"
 	pip install lxml
 	pip install elasticsearch
 	pip install simplejson
 	pip install requests
+	pip install pymongo
 fi
 #----------------------Ending Python & Scrapy -------------------------------------------------
 
